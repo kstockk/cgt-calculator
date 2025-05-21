@@ -3,6 +3,7 @@ import sys
 
 from trade import Trade
 from collections import namedtuple
+from itertools import groupby
 import datetime
 
 Holding = namedtuple("trade", "date qty orig_qty unit_price brokerage")
@@ -12,7 +13,7 @@ VERBOSE = False
 
 def sort_and_filter_before_date(trades, date):
     '''Inclusive.'''
-    return sorted([t for t in trades if t.date <= date], key=lambda x: x.date)
+    return sorted([t for t in trades if t.date <= date], key=lambda x: (x.ticker, x.date))
 
 def fifo(trades):
     holdings = []
@@ -87,5 +88,10 @@ if __name__ == "__main__":
 
         if VERBOSE:
             for t in trades:
-                print(t)           
-        fifo(trades)
+                print(t)
+
+        grouped_trades = groupby(trades, key=lambda x: x.ticker)
+
+        for key, group in grouped_trades:
+            print(key)
+            fifo(list(group))
