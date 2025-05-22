@@ -13,7 +13,8 @@ VERBOSE = False
 
 def sort_and_filter_before_date(trades, date):
     '''Inclusive.'''
-    return sorted([t for t in trades if t.date <= date], key=lambda x: (x.ticker, x.date))
+    type_order = {"BUY": 0, "SELL": 1}
+    return sorted([t for t in trades if t.date <= date], key=lambda x: (x.ticker, type_order.get(x.type, 99), x.date))
 
 def fifo(trades):
     holdings = []
@@ -44,12 +45,12 @@ def log_sell(used, trade):
     tot_discount = 0
     for t in used:
         cost_base = (t.qty * t.unit_price) + t.brokerage 
-        sell_price = t.qty * trade.unit_price
+        sell_price = (t.qty * trade.unit_price) - t.brokerage 
         cgt = sell_price - cost_base
         discount = calculate_discount(cost_base, sell_price, t.discounted)
         tot_cgt += cgt - discount
         tot_discount += discount
-        print(f'Used {t.qty} of an original {t.orig_qty} of shares from {t.date}. Cost {t.qty}*{t.unit_price} plus brokerage of {t.brokerage} for {cost_base}. Sold for {t.qty}*{trade.unit_price}={sell_price}. Gained {sell_price-cost_base}, CGT of {cgt}. Discounted: {t.discounted}')
+        print(f'Used {t.qty} of an original {t.orig_qty} of shares from {t.date}. Cost {t.qty}*{t.unit_price} plus brokerage of {t.brokerage} for {cost_base}. Sold for {t.qty}*{trade.unit_price} minus brokerage of {t.brokerage} for {sell_price}. Gained {sell_price-cost_base}, CGT of {cgt}. Discounted: {t.discounted}')
     print(f'Total capital gain from this sale: ${tot_cgt + tot_discount}. Discounted {tot_discount} for a final CGT of {tot_cgt}')
 
 def fifo_sell(holdings, trade):
@@ -76,8 +77,23 @@ def fifo_sell(holdings, trade):
 
 if __name__ == "__main__":
     with open(sys.argv[1]) as f:
-        trades = list(csv.reader(f, delimiter=","))[1:]
-        trades = [Trade(*t[:6]) for t in trades]
+        trades = list(csv.DictReader(f))
+        # date, type, ticker, qty, price, brokerage
+        selected_fields = ["Trade Date", "Order Type", "Ticker", "Quantity", "Price", "Brokerage", "GST"]
+
+        field_map = {
+            "Ticker": "ticker",
+            "Trade Date": "date",
+            "Quantity": "qty",
+            "Price": "price",
+            "Brokerage": "brokerage",
+            "GST": "gst",
+            "Order Type": "type"
+        }
+
+        trades = [Trade(**{field_map[k]: row[k] for k in selected_fields}) for row in trades]
+        
+        # trades = [Trade(*t[:6]) for t in trades]
 
         day, month, year = [int(x) for x in sys.argv[2].split("/")]
         end_date = datetime.date(year=year, month=month, day=day)
@@ -94,4 +110,5 @@ if __name__ == "__main__":
 
         for key, group in grouped_trades:
             print(key)
-            fifo(list(group))
+            trades = list(group)
+            fifo(trades)
